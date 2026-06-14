@@ -1,5 +1,5 @@
 import { Utensils, Snowflake, Sun, LayoutGrid } from 'lucide-react';
-import type { FilterType, StorageLocation } from '@/types';
+import type { FilterType } from '@/types';
 import { useFoodStore } from '@/store/useFoodStore';
 
 const filterOptions: { value: FilterType; label: string; icon: typeof LayoutGrid }[] = [

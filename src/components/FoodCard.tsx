@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Utensils, Snowflake, Sun, Minus, Plus, Check, X } from 'lucide-react';
-import type { FoodItem, ExpiryStatus, StorageLocation } from '@/types';
+import type { FoodItem, ExpiryStatus, StorageLocation, FoodCategory } from '@/types';
 import { getDaysRemaining, getExpiryStatus, formatDate } from '@/utils/dateUtils';
 import { useFoodStore } from '@/store/useFoodStore';
 
@@ -48,6 +48,26 @@ const locationLabels: Record<StorageLocation, string> = {
   room: '常温',
 };
 
+const categoryLabels: Record<FoodCategory, string> = {
+  vegetable: '蔬菜',
+  fruit: '水果',
+  meat: '肉类',
+  condiment: '调味品',
+  beverage: '饮料',
+  snack: '零食',
+  other: '其他',
+};
+
+const categoryBadgeStyles: Record<FoodCategory, string> = {
+  vegetable: 'bg-green-100 text-green-700',
+  fruit: 'bg-orange-100 text-orange-700',
+  meat: 'bg-red-100 text-red-700',
+  condiment: 'bg-yellow-100 text-yellow-700',
+  beverage: 'bg-blue-100 text-blue-700',
+  snack: 'bg-purple-100 text-purple-700',
+  other: 'bg-gray-100 text-gray-700',
+};
+
 export function FoodCard({ item, index }: FoodCardProps) {
   const consumeItem = useFoodStore((state) => state.consumeItem);
   const [isEating, setIsEating] = useState(false);
@@ -56,6 +76,7 @@ export function FoodCard({ item, index }: FoodCardProps) {
   const status = getExpiryStatus(item);
   const styles = statusStyles[status];
   const LocationIcon = locationIcons[item.storageLocation];
+  const categoryBadgeStyle = categoryBadgeStyles[item.category];
 
   const handleStartEat = () => {
     setEatAmount(1);
@@ -102,8 +123,11 @@ export function FoodCard({ item, index }: FoodCardProps) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <h3 className="font-semibold text-gray-800 text-lg truncate">{item.name}</h3>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${categoryBadgeStyle} font-medium shrink-0`}>
+              {categoryLabels[item.category]}
+            </span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${styles.badge} font-medium shrink-0`}>
               {getStatusText()}
             </span>
