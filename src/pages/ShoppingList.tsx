@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -13,6 +13,8 @@ import {
   Package,
   Eraser,
   ListChecks,
+  Edit2,
+  X,
 } from 'lucide-react';
 import { useFoodStore } from '@/store/useFoodStore';
 import type { ShoppingListItem, SupermarketAisle, FoodCategory } from '@/types';
@@ -79,6 +81,16 @@ export default function ShoppingList() {
   const removeFromShoppingList = useFoodStore((state) => state.removeFromShoppingList);
   const clearCheckedItems = useFoodStore((state) => state.clearCheckedItems);
   const clearShoppingList = useFoodStore((state) => state.clearShoppingList);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingId && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editingId]);
 
   const groupedItems = useMemo<AisleGroup[]>(() => {
     const groups: Record<SupermarketAisle, ShoppingListItem[]> = {
@@ -113,6 +125,33 @@ export default function ShoppingList() {
 
   const handleIncrease = (item: ShoppingListItem) => {
     updateShoppingItemQuantity(item.id, item.quantity + 1);
+  };
+
+  const handleStartEdit = (item: ShoppingListItem) => {
+    setEditingId(item.id);
+    setEditValue(item.quantity.toString());
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditValue('');
+  };
+
+  const handleConfirmEdit = (item: ShoppingListItem) => {
+    const num = parseInt(editValue, 10);
+    if (!isNaN(num) && num > 0 && num !== item.quantity) {
+      updateShoppingItemQuantity(item.id, num);
+    }
+    setEditingId(null);
+    setEditValue('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, item: ShoppingListItem) => {
+    if (e.key === 'Enter') {
+      handleConfirmEdit(item);
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
   };
 
   return (
@@ -151,6 +190,15 @@ export default function ShoppingList() {
             <div className="text-xs text-gray-500 mt-0.5">已购买</div>
           </div>
         </div>
+
+        {totalItems > 0 && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-100 rounded-xl">
+            <p className="text-xs text-blue-600 flex items-center gap-1.5">
+              <span className="text-sm">💡</span>
+              <span>点击数量可直接输入数字；勾选圆圈标记"已购买"后自动入库更新库存</span>
+            </p>
+          </div>
+        )}
 
         {totalItems > 0 && (
           <div className="flex gap-2 mb-6">
@@ -208,7 +256,7 @@ export default function ShoppingList() {
                     {group.items.map((item) => (
                       <div
                         key={item.id}
-                        className={`bg-white rounded-xl p-4 border transition-all duration-300 ${
+                        className={`group bg-white rounded-xl p-4 border transition-all duration-300 ${
                           item.checked
                             ? 'border-gray-200 bg-gray-50/50'
                             : 'border-gray-100 hover:shadow-md hover:-translate-y-0.5'
@@ -250,24 +298,51 @@ export default function ShoppingList() {
                           <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 shrink-0">
                             <button
                               onClick={() => handleDecrease(item)}
-                              disabled={item.quantity <= 1}
+                              disabled={item.quantity <= 1 || editingId === item.id}
                               className="w-7 h-7 flex items-center justify-center rounded-md bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                             >
                               <Minus size={14} />
                             </button>
-                            <span
-                              className={`w-10 text-center font-semibold text-sm ${
-                                item.checked ? 'text-gray-400' : 'text-gray-700'
-                              }`}
-                            >
-                              {item.quantity}
-                              <span className="text-xs font-normal text-gray-400 ml-0.5">
-                                {item.unit}
-                              </span>
-                            </span>
+                            {editingId === item.id ? (
+                              <div className="flex items-center gap-0.5">
+                                <input
+                                  ref={inputRef}
+                                  type="number"
+                                  min="1"
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  onKeyDown={(e) => handleKeyDown(e, item)}
+                                  onBlur={() => handleConfirmEdit(item)}
+                                  className="w-12 text-center font-semibold text-sm text-gray-700 bg-white rounded-md border-2 border-orange-400 outline-none py-1"
+                                />
+                                <button
+                                  onClick={() => handleCancelEdit()}
+                                  className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleStartEdit(item)}
+                                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md hover:bg-white hover:shadow-sm transition-all ${
+                                  item.checked ? 'text-gray-400' : 'text-gray-700'
+                                }`}
+                                title="点击修改数量"
+                              >
+                                <span className="w-8 text-center font-semibold text-sm">
+                                  {item.quantity}
+                                </span>
+                                <span className="text-xs font-normal text-gray-400">
+                                  {item.unit}
+                                </span>
+                                <Edit2 size={10} className="text-gray-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                              </button>
+                            )}
                             <button
                               onClick={() => handleIncrease(item)}
-                              className="w-7 h-7 flex items-center justify-center rounded-md bg-white text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
+                              disabled={editingId === item.id}
+                              className="w-7 h-7 flex items-center justify-center rounded-md bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                             >
                               <Plus size={14} />
                             </button>

@@ -29,6 +29,8 @@ export interface ShoppingListItem {
   addedAt: string;
   checked?: boolean;
   sourceFoodItemId?: string;
+  storageLocation?: StorageLocation;
+  shelfLifeDays?: number;
 }
 
 export interface FoodTemplate {

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { FoodItem, FilterType, FoodTemplate, CategoryFilterType, ShoppingListItem, SupermarketAisle, FoodCategory } from '@/types';
+import type { FoodItem, FilterType, FoodTemplate, CategoryFilterType, ShoppingListItem, SupermarketAisle, FoodCategory, StorageLocation } from '@/types';
 import { generateId, getTodayString } from '@/utils/dateUtils';
 
 function getMockItems(): FoodItem[] {
@@ -178,7 +178,7 @@ interface FoodStore {
   addItemFromTemplate: (templateId: string, quantity: number) => void;
   initMockData: () => void;
   toggleNeedToBuy: (foodItemId: string) => void;
-  addToShoppingList: (item: Omit<ShoppingListItem, 'id' | 'addedAt' | 'aisle'> & { sourceFoodItemId?: string }) => void;
+  addToShoppingList: (item: Omit<ShoppingListItem, 'id' | 'addedAt' | 'aisle'> & { sourceFoodItemId?: string; storageLocation?: StorageLocation; shelfLifeDays?: number }) => void;
   removeFromShoppingList: (id: string) => void;
   toggleShoppingItemChecked: (id: string) => void;
   updateShoppingItemQuantity: (id: string, quantity: number) => void;
@@ -301,6 +301,8 @@ export const useFoodStore = create<FoodStore>()(
                 addedAt: new Date().toISOString(),
                 checked: false,
                 sourceFoodItemId: foodItemId,
+                storageLocation: item.storageLocation,
+                shelfLifeDays: item.shelfLifeDays,
               };
               newShoppingList = [...state.shoppingList, newShoppingItem];
             }
@@ -329,13 +331,25 @@ export const useFoodStore = create<FoodStore>()(
 
       removeFromShoppingList: (id) => {
         const shoppingItem = get().shoppingList.find((sl) => sl.id === id);
+        if (!shoppingItem) return;
+
         set((state) => {
           let newItems = state.items;
-          if (shoppingItem?.sourceFoodItemId) {
+
+          if (shoppingItem.checked && shoppingItem.sourceFoodItemId) {
+            newItems = newItems
+              .map((i) =>
+                i.id === shoppingItem.sourceFoodItemId
+                  ? { ...i, quantity: i.quantity - shoppingItem.quantity, needToBuy: false }
+                  : i
+              )
+              .filter((i) => i.quantity > 0);
+          } else if (shoppingItem.sourceFoodItemId) {
             newItems = state.items.map((i) =>
               i.id === shoppingItem.sourceFoodItemId ? { ...i, needToBuy: false } : i
             );
           }
+
           return {
             items: newItems,
             shoppingList: state.shoppingList.filter((sl) => sl.id !== id),
@@ -344,11 +358,66 @@ export const useFoodStore = create<FoodStore>()(
       },
 
       toggleShoppingItemChecked: (id) => {
-        set((state) => ({
-          shoppingList: state.shoppingList.map((sl) =>
-            sl.id === id ? { ...sl, checked: !sl.checked } : sl
-          ),
-        }));
+        const shoppingItem = get().shoppingList.find((sl) => sl.id === id);
+        if (!shoppingItem) return;
+
+        const newChecked = !shoppingItem.checked;
+
+        set((state) => {
+          let newItems = [...state.items];
+
+          if (newChecked) {
+            const quantityToAdd = shoppingItem.quantity;
+            const sourceItem = shoppingItem.sourceFoodItemId
+              ? newItems.find((i) => i.id === shoppingItem.sourceFoodItemId)
+              : null;
+
+            if (sourceItem) {
+              newItems = newItems.map((i) =>
+                i.id === sourceItem.id
+                  ? { ...i, quantity: i.quantity + quantityToAdd, purchaseDate: getTodayString(), needToBuy: false }
+                  : i
+              );
+            } else {
+              const storageLocation = shoppingItem.storageLocation || 'refrigerator';
+              const shelfLifeDays = shoppingItem.shelfLifeDays || 7;
+              const newFoodItem: FoodItem = {
+                id: generateId(),
+                name: shoppingItem.name,
+                quantity: quantityToAdd,
+                unit: shoppingItem.unit,
+                purchaseDate: getTodayString(),
+                shelfLifeDays,
+                storageLocation,
+                category: shoppingItem.category,
+                createdAt: new Date().toISOString(),
+              };
+              newItems = [...newItems, newFoodItem];
+            }
+          } else {
+            const quantityToRemove = shoppingItem.quantity;
+            const sourceItem = shoppingItem.sourceFoodItemId
+              ? newItems.find((i) => i.id === shoppingItem.sourceFoodItemId)
+              : null;
+
+            if (sourceItem) {
+              newItems = newItems
+                .map((i) =>
+                  i.id === sourceItem.id
+                    ? { ...i, quantity: i.quantity - quantityToRemove, needToBuy: true }
+                    : i
+                )
+                .filter((i) => i.quantity > 0);
+            }
+          }
+
+          return {
+            items: newItems,
+            shoppingList: state.shoppingList.map((sl) =>
+              sl.id === id ? { ...sl, checked: newChecked } : sl
+            ),
+          };
+        });
       },
 
       updateShoppingItemQuantity: (id, quantity) => {
@@ -356,11 +425,38 @@ export const useFoodStore = create<FoodStore>()(
           get().removeFromShoppingList(id);
           return;
         }
-        set((state) => ({
-          shoppingList: state.shoppingList.map((sl) =>
-            sl.id === id ? { ...sl, quantity } : sl
-          ),
-        }));
+
+        const shoppingItem = get().shoppingList.find((sl) => sl.id === id);
+        if (!shoppingItem) return;
+
+        const quantityDiff = quantity - shoppingItem.quantity;
+
+        set((state) => {
+          let newItems = state.items;
+
+          if (shoppingItem.checked && quantityDiff !== 0) {
+            const sourceItem = shoppingItem.sourceFoodItemId
+              ? newItems.find((i) => i.id === shoppingItem.sourceFoodItemId)
+              : null;
+
+            if (sourceItem) {
+              newItems = newItems
+                .map((i) =>
+                  i.id === sourceItem.id
+                    ? { ...i, quantity: i.quantity + quantityDiff }
+                    : i
+                )
+                .filter((i) => i.quantity > 0);
+            }
+          }
+
+          return {
+            items: newItems,
+            shoppingList: state.shoppingList.map((sl) =>
+              sl.id === id ? { ...sl, quantity } : sl
+            ),
+          };
+        });
       },
 
       clearCheckedItems: () => {
