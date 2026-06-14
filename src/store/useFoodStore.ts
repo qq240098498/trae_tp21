@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { FoodItem, FilterType, FoodTemplate, CategoryFilterType } from '@/types';
+import type { FoodItem, FilterType, FoodTemplate, CategoryFilterType, ShoppingListItem, SupermarketAisle, FoodCategory } from '@/types';
 import { generateId, getTodayString } from '@/utils/dateUtils';
 
 function getMockItems(): FoodItem[] {
@@ -146,9 +146,24 @@ function getMockTemplates(): FoodTemplate[] {
   ];
 }
 
+const categoryToAisle: Record<FoodCategory, SupermarketAisle> = {
+  vegetable: 'fresh',
+  fruit: 'fresh',
+  meat: 'fresh',
+  condiment: 'condiment',
+  beverage: 'snack',
+  snack: 'snack',
+  other: 'other',
+};
+
+function getAisleFromCategory(category: FoodCategory): SupermarketAisle {
+  return categoryToAisle[category];
+}
+
 interface FoodStore {
   items: FoodItem[];
   templates: FoodTemplate[];
+  shoppingList: ShoppingListItem[];
   filter: FilterType;
   categoryFilter: CategoryFilterType;
   searchQuery: string;
@@ -162,6 +177,13 @@ interface FoodStore {
   removeTemplate: (id: string) => void;
   addItemFromTemplate: (templateId: string, quantity: number) => void;
   initMockData: () => void;
+  toggleNeedToBuy: (foodItemId: string) => void;
+  addToShoppingList: (item: Omit<ShoppingListItem, 'id' | 'addedAt' | 'aisle'> & { sourceFoodItemId?: string }) => void;
+  removeFromShoppingList: (id: string) => void;
+  toggleShoppingItemChecked: (id: string) => void;
+  updateShoppingItemQuantity: (id: string, quantity: number) => void;
+  clearCheckedItems: () => void;
+  clearShoppingList: () => void;
 }
 
 export const useFoodStore = create<FoodStore>()(
@@ -169,6 +191,7 @@ export const useFoodStore = create<FoodStore>()(
     (set, get) => ({
       items: [],
       templates: [],
+      shoppingList: [],
       filter: 'all',
       categoryFilter: 'all',
       searchQuery: '',
@@ -185,6 +208,7 @@ export const useFoodStore = create<FoodStore>()(
       removeItem: (id) => {
         set((state) => ({
           items: state.items.filter((item) => item.id !== id),
+          shoppingList: state.shoppingList.filter((sl) => sl.sourceFoodItemId !== id),
         }));
       },
 
@@ -253,6 +277,111 @@ export const useFoodStore = create<FoodStore>()(
         if (templates.length === 0) {
           set({ templates: getMockTemplates() });
         }
+      },
+
+      toggleNeedToBuy: (foodItemId) => {
+        const item = get().items.find((i) => i.id === foodItemId);
+        if (!item) return;
+
+        const newNeedToBuy = !item.needToBuy;
+
+        set((state) => {
+          let newShoppingList = state.shoppingList;
+
+          if (newNeedToBuy) {
+            const existingItem = state.shoppingList.find((sl) => sl.sourceFoodItemId === foodItemId);
+            if (!existingItem) {
+              const newShoppingItem: ShoppingListItem = {
+                id: generateId(),
+                name: item.name,
+                quantity: item.quantity || 1,
+                unit: item.unit,
+                category: item.category,
+                aisle: getAisleFromCategory(item.category),
+                addedAt: new Date().toISOString(),
+                checked: false,
+                sourceFoodItemId: foodItemId,
+              };
+              newShoppingList = [...state.shoppingList, newShoppingItem];
+            }
+          } else {
+            newShoppingList = state.shoppingList.filter((sl) => sl.sourceFoodItemId !== foodItemId);
+          }
+
+          return {
+            items: state.items.map((i) =>
+              i.id === foodItemId ? { ...i, needToBuy: newNeedToBuy } : i
+            ),
+            shoppingList: newShoppingList,
+          };
+        });
+      },
+
+      addToShoppingList: (item) => {
+        const newItem: ShoppingListItem = {
+          ...item,
+          id: generateId(),
+          aisle: getAisleFromCategory(item.category),
+          addedAt: new Date().toISOString(),
+        };
+        set((state) => ({ shoppingList: [...state.shoppingList, newItem] }));
+      },
+
+      removeFromShoppingList: (id) => {
+        const shoppingItem = get().shoppingList.find((sl) => sl.id === id);
+        set((state) => {
+          let newItems = state.items;
+          if (shoppingItem?.sourceFoodItemId) {
+            newItems = state.items.map((i) =>
+              i.id === shoppingItem.sourceFoodItemId ? { ...i, needToBuy: false } : i
+            );
+          }
+          return {
+            items: newItems,
+            shoppingList: state.shoppingList.filter((sl) => sl.id !== id),
+          };
+        });
+      },
+
+      toggleShoppingItemChecked: (id) => {
+        set((state) => ({
+          shoppingList: state.shoppingList.map((sl) =>
+            sl.id === id ? { ...sl, checked: !sl.checked } : sl
+          ),
+        }));
+      },
+
+      updateShoppingItemQuantity: (id, quantity) => {
+        if (quantity <= 0) {
+          get().removeFromShoppingList(id);
+          return;
+        }
+        set((state) => ({
+          shoppingList: state.shoppingList.map((sl) =>
+            sl.id === id ? { ...sl, quantity } : sl
+          ),
+        }));
+      },
+
+      clearCheckedItems: () => {
+        set((state) => {
+          const checkedSourceIds = state.shoppingList
+            .filter((sl) => sl.checked && sl.sourceFoodItemId)
+            .map((sl) => sl.sourceFoodItemId!);
+          return {
+            items: state.items.map((i) =>
+              checkedSourceIds.includes(i.id) ? { ...i, needToBuy: false } : i
+            ),
+            shoppingList: state.shoppingList.filter((sl) => !sl.checked),
+          };
+        });
+      },
+
+      clearShoppingList: () => {
+        set((state) => ({
+          items: state.items.map((i) => ({ ...i, needToBuy: false })),
+          shoppingList: [],
+        }));
       },
     }),
     {

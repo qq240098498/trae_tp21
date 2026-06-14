@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Utensils, Snowflake, Sun, Minus, Plus, Check, X } from 'lucide-react';
+import { Utensils, Snowflake, Sun, Minus, Plus, Check, X, ShoppingCart } from 'lucide-react';
 import type { FoodItem, ExpiryStatus, StorageLocation, FoodCategory } from '@/types';
 import { getDaysRemaining, getExpiryStatus, formatDate } from '@/utils/dateUtils';
 import { useFoodStore } from '@/store/useFoodStore';
@@ -70,6 +70,7 @@ const categoryBadgeStyles: Record<FoodCategory, string> = {
 
 export function FoodCard({ item, index }: FoodCardProps) {
   const consumeItem = useFoodStore((state) => state.consumeItem);
+  const toggleNeedToBuy = useFoodStore((state) => state.toggleNeedToBuy);
   const [isEating, setIsEating] = useState(false);
   const [eatAmount, setEatAmount] = useState(1);
   const daysRemaining = getDaysRemaining(item);
@@ -202,6 +203,24 @@ export function FoodCard({ item, index }: FoodCardProps) {
             </button>
           </div>
         )}
+      </div>
+
+      <div
+        className={`mt-3 pt-3 border-t border-dashed flex items-center justify-between ${
+          item.needToBuy ? 'border-orange-200 bg-orange-50/50 -mx-4 -mb-4 px-4 pb-3 rounded-b-xl' : 'border-gray-100'
+        }`}
+      >
+        <button
+          onClick={() => toggleNeedToBuy(item.id)}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+            item.needToBuy
+              ? 'bg-orange-500 text-white shadow-sm shadow-orange-200'
+              : 'bg-gray-100 text-gray-500 hover:bg-orange-100 hover:text-orange-600'
+          }`}
+        >
+          <ShoppingCart size={16} />
+          <span>{item.needToBuy ? '已加入购物清单' : '吃完了需要再买'}</span>
+        </button>
       </div>
 
       {status === 'danger' && (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Refrigerator, AlertTriangle, ChefHat, Sparkles, Bookmark } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Refrigerator, AlertTriangle, ChefHat, Sparkles, Bookmark, ShoppingCart } from 'lucide-react';
 import { useGroupedItems, useStats } from '@/hooks/useFoodItems';
 import { useFoodStore } from '@/store/useFoodStore';
 import { StatsBar } from '@/components/StatsBar';
@@ -18,11 +19,13 @@ export default function Home() {
   const totalItems = useFoodStore((state) => state.items.length);
   const searchQuery = useFoodStore((state) => state.searchQuery);
   const categoryFilter = useFoodStore((state) => state.categoryFilter);
+  const shoppingList = useFoodStore((state) => state.shoppingList);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [showReminder, setShowReminder] = useState(false);
 
   const totalFilteredItems = groups.reduce((sum, g) => sum + g.items.length, 0);
+  const uncheckedShoppingCount = shoppingList.filter((i) => !i.checked).length;
 
   useEffect(() => {
     if (stats.danger > 0 || stats.expired > 0) {
@@ -52,13 +55,27 @@ export default function Home() {
               <p className="text-sm text-gray-500">管理食材，新鲜每一天</p>
             </div>
           </div>
-          <button
-            onClick={() => setIsTemplateModalOpen(true)}
-            className="p-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all"
-            title="常用食材模板"
-          >
-            <Bookmark size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/shopping-list"
+              className="relative p-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200 transition-all"
+              title="购物清单"
+            >
+              <ShoppingCart size={20} />
+              {uncheckedShoppingCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 flex items-center justify-center text-xs font-bold text-white bg-orange-500 rounded-full shadow-sm">
+                  {uncheckedShoppingCount > 99 ? '99+' : uncheckedShoppingCount}
+                </span>
+              )}
+            </Link>
+            <button
+              onClick={() => setIsTemplateModalOpen(true)}
+              className="p-2.5 rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all"
+              title="常用食材模板"
+            >
+              <Bookmark size={20} />
+            </button>
+          </div>
         </div>
 
         {showReminder && (stats.danger > 0 || stats.expired > 0) && (
