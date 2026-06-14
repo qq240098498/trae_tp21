@@ -110,6 +110,7 @@ interface FoodStore {
   filter: FilterType;
   addItem: (item: Omit<FoodItem, 'id' | 'createdAt'>) => void;
   removeItem: (id: string) => void;
+  consumeItem: (id: string, amount: number) => void;
   setFilter: (filter: FilterType) => void;
   initMockData: () => void;
 }
@@ -132,6 +133,18 @@ export const useFoodStore = create<FoodStore>()(
       removeItem: (id) => {
         set((state) => ({
           items: state.items.filter((item) => item.id !== id),
+        }));
+      },
+
+      consumeItem: (id, amount) => {
+        set((state) => ({
+          items: state.items
+            .map((item) => {
+              if (item.id !== id) return item;
+              const newQuantity = item.quantity - amount;
+              return { ...item, quantity: newQuantity };
+            })
+            .filter((item) => item.quantity > 0),
         }));
       },
 

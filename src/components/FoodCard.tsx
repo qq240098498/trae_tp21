@@ -1,4 +1,5 @@
-import { Utensils, Snowflake, Sun, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Utensils, Snowflake, Sun, Minus, Plus, Check, X } from 'lucide-react';
 import type { FoodItem, ExpiryStatus, StorageLocation } from '@/types';
 import { getDaysRemaining, getExpiryStatus, formatDate } from '@/utils/dateUtils';
 import { useFoodStore } from '@/store/useFoodStore';
@@ -48,14 +49,43 @@ const locationLabels: Record<StorageLocation, string> = {
 };
 
 export function FoodCard({ item, index }: FoodCardProps) {
-  const removeItem = useFoodStore((state) => state.removeItem);
+  const consumeItem = useFoodStore((state) => state.consumeItem);
+  const [isEating, setIsEating] = useState(false);
+  const [eatAmount, setEatAmount] = useState(1);
   const daysRemaining = getDaysRemaining(item);
   const status = getExpiryStatus(item);
   const styles = statusStyles[status];
   const LocationIcon = locationIcons[item.storageLocation];
 
-  const handleEat = () => {
-    removeItem(item.id);
+  const handleStartEat = () => {
+    setEatAmount(1);
+    setIsEating(true);
+  };
+
+  const handleCancelEat = () => {
+    setIsEating(false);
+  };
+
+  const handleConfirmEat = () => {
+    consumeItem(item.id, eatAmount);
+    setIsEating(false);
+  };
+
+  const handleEatAll = () => {
+    consumeItem(item.id, item.quantity);
+    setIsEating(false);
+  };
+
+  const decreaseAmount = () => {
+    if (eatAmount > 1) {
+      setEatAmount(eatAmount - 1);
+    }
+  };
+
+  const increaseAmount = () => {
+    if (eatAmount < item.quantity) {
+      setEatAmount(eatAmount + 1);
+    }
   };
 
   const getStatusText = () => {
@@ -95,14 +125,59 @@ export function FoodCard({ item, index }: FoodCardProps) {
           </div>
         </div>
 
-        <button
-          onClick={handleEat}
-          className="shrink-0 flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 active:scale-95 transition-all duration-200 min-w-[60px]"
-          title="标记为已吃完"
-        >
-          <Trash2 size={18} />
-          <span className="text-xs font-medium">已吃完</span>
-        </button>
+        {!isEating ? (
+          <button
+            onClick={handleStartEat}
+            className="shrink-0 flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 active:scale-95 transition-all duration-200 min-w-[60px]"
+            title="吃掉一些"
+          >
+            <Utensils size={18} />
+            <span className="text-xs font-medium">吃掉</span>
+          </button>
+        ) : (
+          <div className="shrink-0 flex flex-col items-center gap-2">
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={decreaseAmount}
+                disabled={eatAmount <= 1}
+                className="w-7 h-7 flex items-center justify-center rounded-md bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                <Minus size={14} />
+              </button>
+              <span className="w-8 text-center font-semibold text-gray-700 text-sm">
+                {eatAmount}
+              </span>
+              <button
+                onClick={increaseAmount}
+                disabled={eatAmount >= item.quantity}
+                className="w-7 h-7 flex items-center justify-center rounded-md bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                onClick={handleCancelEat}
+                className="w-8 h-8 flex items-center justify-center rounded-md bg-gray-200 text-gray-500 hover:bg-gray-300 transition-colors"
+              >
+                <X size={14} />
+              </button>
+              <button
+                onClick={handleConfirmEat}
+                className="flex-1 h-8 flex items-center justify-center gap-1 px-3 rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-colors text-xs font-medium"
+              >
+                <Check size={14} />
+                确认
+              </button>
+            </div>
+            <button
+              onClick={handleEatAll}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              全部吃完
+            </button>
+          </div>
+        )}
       </div>
 
       {status === 'danger' && (
